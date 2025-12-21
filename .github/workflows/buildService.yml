@@ -10,6 +10,9 @@ on:
 jobs:
   BuildPackage:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Prepare StartOS SDK
         uses: start9labs/sdk@v2

@@ -3,6 +3,10 @@ name: Release Service
 on:
   workflow_call:
     inputs:
+      FREE_DISK_SPACE:
+        description: "Free up disk space before building"
+        type: boolean
+        default: false
       REGISTRY:
         description: "The target registry"
         type: string
@@ -17,6 +21,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Free up disk space
+        if: ${{ inputs.FREE_DISK_SPACE }}
+        uses: start9labs/shared-workflows/.github/actions/free-disk-space@master
+
       - name: Prepare StartOS SDK
         uses: start9labs/sdk@v2.1
 

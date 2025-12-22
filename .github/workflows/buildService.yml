@@ -2,6 +2,11 @@ name: Build Service
 
 on:
   workflow_call:
+    inputs:
+      FREE_DISK_SPACE:
+        description: "Free up disk space before building"
+        type: boolean
+        default: false
     secrets:
       DEV_KEY:
         description: "Developer signing key"
@@ -14,6 +19,10 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      - name: Free up disk space
+        if: ${{ inputs.FREE_DISK_SPACE }}
+        uses: start9labs/shared-workflows/.github/actions/free-disk-space@master
+
       - name: Prepare StartOS SDK
         uses: start9labs/sdk@v2
 

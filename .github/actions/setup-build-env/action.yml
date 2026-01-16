@@ -50,8 +50,7 @@ runs:
         fi
         BINARY_NAME="start-cli-${ARCH_NAME}-${OS_NAME}"
         ASSET_NAME="${BINARY_NAME}.tar.gz"
-        # Fetch latest release including pre-releases
-        LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/Start9Labs/start-cli/releases | jq -r '.[0].assets[] | select(.name=="'"$ASSET_NAME"'") | .browser_download_url')
+        LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/Start9Labs/start-cli/releases/latest | jq -r '.assets[] | select(.name=="'"$ASSET_NAME"'") | .browser_download_url')
         curl -L "$LATEST_RELEASE_URL" -o start-cli.tar.gz
         tar xzf start-cli.tar.gz
         sudo mv "$BINARY_NAME" /usr/local/bin/start-cli

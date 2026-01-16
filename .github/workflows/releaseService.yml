@@ -78,5 +78,5 @@ jobs:
 
       - name: Publish to Registry
         run: |
-          start-cli --registry ${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }} registry package add ${{ env.package_id }}.s9pk ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.package_id }}.s9pk
+          start-cli --registry ${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }} registry package add ${{ env.package_id }}.s9pk --url ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.package_id }}.s9pk
         shell: bash

@@ -41,17 +41,19 @@ jobs:
           fi
         shell: bash
 
-      - name: Build the service package
+      - name: Build the service packages
         id: build
         run: |
           RUST_LOG=debug RUST_BACKTRACE=1 make
-          PACKAGE_ID=$(start-cli s9pk inspect *.s9pk manifest | jq -r '.id')
-          echo "package_id=${PACKAGE_ID}" >> $GITHUB_ENV
-          printf "\n SHA256SUM: $(sha256sum ${PACKAGE_ID}.s9pk) \n"
+          PACKAGE_ID=$(start-cli s9pk inspect $(ls *.s9pk | head -1) manifest | jq -r '.id')
+          echo "package_id=${PACKAGE_ID}" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "SHA256SUMs:"
+          sha256sum *.s9pk
         shell: bash
 
-      - name: Upload .s9pk
+      - name: Upload .s9pk files
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.package_id }}.s9pk
-          path: ./${{ env.package_id }}.s9pk
+          name: ${{ steps.build.outputs.package_id }}-s9pk
+          path: ./*.s9pk

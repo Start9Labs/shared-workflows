@@ -13,11 +13,13 @@ on:
         required: false
 
 jobs:
-  BuildPackage:
+  Build:
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.workflow }}-${{ github.event.pull_request.head.sha || github.sha }}
       cancel-in-progress: true
+    outputs:
+      s9pk_matrix: ${{ steps.build.outputs.s9pk_matrix }}
     steps:
       - name: Free up disk space
         if: ${{ inputs.FREE_DISK_SPACE }}
@@ -45,15 +47,23 @@ jobs:
         id: build
         run: |
           RUST_LOG=debug RUST_BACKTRACE=1 make
-          PACKAGE_ID=$(start-cli s9pk inspect $(ls *.s9pk | head -1) manifest | jq -r '.id')
-          echo "package_id=${PACKAGE_ID}" >> "$GITHUB_OUTPUT"
+          S9PK_JSON=$(ls *.s9pk | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "s9pk_matrix=${S9PK_JSON}" >> "$GITHUB_OUTPUT"
           echo ""
           echo "SHA256SUMs:"
           sha256sum *.s9pk
         shell: bash
 
-      - name: Upload .s9pk files
+      - name: Upload build output
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ steps.build.outputs.package_id }}-s9pk
+          name: build-output
           path: ./*.s9pk
+          compression-level: 0
+          retention-days: 1
+
+  UploadArtifacts:
+    needs: Build
+    uses: start9labs/shared-workflows/.github/workflows/uploadArtifacts.yml@master
+    with:
+      s9pk_matrix: ${{ needs.Build.outputs.s9pk_matrix }}

@@ -16,10 +16,12 @@ on:
         required: true
 
 jobs:
-  ReleasePackage:
+  Build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      s9pk_matrix: ${{ steps.build.outputs.s9pk_matrix }}
     steps:
       - name: Free up disk space
         if: ${{ inputs.FREE_DISK_SPACE }}
@@ -45,6 +47,8 @@ jobs:
           PACKAGE_TITLE=$(echo "$MANIFEST_JSON" | jq -r '.title')
           echo "package_id=${PACKAGE_ID}" >> $GITHUB_ENV
           echo "package_title=${PACKAGE_TITLE}" >> $GITHUB_ENV
+          S9PK_JSON=$(ls *.s9pk | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "s9pk_matrix=${S9PK_JSON}" >> "$GITHUB_OUTPUT"
           echo ""
           echo "SHA256SUMs:"
           sha256sum *.s9pk
@@ -89,3 +93,17 @@ jobs:
             start-cli --registry "$REGISTRY" registry package add "$s9pk" --url ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${s9pk}
           done
         shell: bash
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-output
+          path: ./*.s9pk
+          compression-level: 0
+          retention-days: 1
+
+  UploadArtifacts:
+    needs: Build
+    uses: start9labs/shared-workflows/.github/workflows/uploadArtifacts.yml@master
+    with:
+      s9pk_matrix: ${{ needs.Build.outputs.s9pk_matrix }}

@@ -1,0 +1,38 @@
+name: Upload Individual Artifacts
+
+on:
+  workflow_call:
+    inputs:
+      s9pk_matrix:
+        description: "JSON array of s9pk filenames"
+        type: string
+        required: true
+
+jobs:
+  Upload:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        s9pk: ${{ fromJson(inputs.s9pk_matrix) }}
+    steps:
+      - name: Download build output
+        uses: actions/download-artifact@v5
+        with:
+          name: build-output
+
+      - name: Upload ${{ matrix.s9pk }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.s9pk }}
+          path: ./${{ matrix.s9pk }}
+          compression-level: 0
+
+  Cleanup:
+    needs: Upload
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Delete temporary build artifact
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: build-output

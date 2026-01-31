@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "## What's Changed" > change-log.txt
           echo "" >> change-log.txt
-          RELEASE_NOTES=$(start-cli s9pk inspect $(ls *.s9pk | head -1) manifest | jq -r '.releaseNotes')
+          RELEASE_NOTES=$(start-cli s9pk inspect $(ls *.s9pk | head -1) manifest | jq -r '.releaseNotes | if type == "object" then (.["en-US"] // first(.[]) // "") else . end')
           echo "${RELEASE_NOTES}" >> change-log.txt
           echo "" >> change-log.txt
           echo "## SHA256 Hashes" >> change-log.txt

@@ -88,9 +88,10 @@ jobs:
       - name: Publish to Registry
         run: |
           REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          BASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}"
           for s9pk in *.s9pk; do
             echo "Publishing ${s9pk}..."
-            start-cli --registry "$REGISTRY" registry package add "$s9pk" --url ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${s9pk}
+            start-cli --registry "$REGISTRY" registry package add "$s9pk" --url "${BASE_URL}/${s9pk}"
           done
         shell: bash
 

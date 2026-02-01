@@ -54,13 +54,6 @@ jobs:
           sha256sum *.s9pk
         shell: bash
 
-      - name: Generate sha256 checksums
-        run: |
-          for s9pk in *.s9pk; do
-            sha256sum "$s9pk" > "${s9pk}.sha256"
-          done
-        shell: bash
-
       - name: Generate changelog
         run: |
           echo "## What's Changed" > change-log.txt
@@ -81,9 +74,7 @@ jobs:
           name: ${{ github.ref_name }}
           prerelease: true
           body_path: change-log.txt
-          files: |
-            ./*.s9pk
-            ./*.s9pk.sha256
+          files: ./*.s9pk
 
       - name: Publish to Registry
         run: |

@@ -14,7 +14,6 @@ on:
 
 jobs:
   Build:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     outputs:
       s9pk_matrix: ${{ steps.build.outputs.s9pk_matrix }}
@@ -62,7 +61,6 @@ jobs:
 
   UploadArtifacts:
     needs: Build
-    if: needs.Build.result == 'success'
     uses: start9labs/shared-workflows/.github/workflows/uploadArtifacts.yml@master
     with:
       s9pk_matrix: ${{ needs.Build.outputs.s9pk_matrix }}

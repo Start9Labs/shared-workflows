@@ -2,11 +2,6 @@ name: Build Service
 
 on:
   workflow_call:
-    inputs:
-      FREE_DISK_SPACE:
-        description: "Free up disk space before building"
-        type: boolean
-        default: false
     secrets:
       DEV_KEY:
         description: "Developer signing key"
@@ -19,7 +14,6 @@ jobs:
       s9pk_matrix: ${{ steps.build.outputs.s9pk_matrix }}
     steps:
       - name: Free up disk space
-        if: ${{ inputs.FREE_DISK_SPACE }}
         uses: start9labs/shared-workflows/.github/actions/free-disk-space@master
 
       - name: Setup build environment

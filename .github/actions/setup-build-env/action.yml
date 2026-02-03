@@ -38,23 +38,16 @@ runs:
       run: |
         ARCH=$(uname -m)
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-        if [ "$ARCH" = "x86_64" ]; then
-          ARCH_NAME="x86_64"
-        elif [ "$ARCH" = "aarch64" ]; then
-          ARCH_NAME="aarch64"
+        ASSET_NAME="start-cli_${ARCH}-${OS}"
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/Start9Labs/start-os/releases \
+          | jq -r '[.[].assets[] | select(.name=="'"$ASSET_NAME"'")] | first | .browser_download_url')
+        if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+          echo "Error: Could not find asset '$ASSET_NAME' in Start9Labs/start-os releases"
+          exit 1
         fi
-        if [ "$OS" = "linux" ]; then
-          OS_NAME="unknown-linux-musl"
-        elif [ "$OS" = "darwin" ]; then
-          OS_NAME="apple-darwin"
-        fi
-        BINARY_NAME="start-cli-${ARCH_NAME}-${OS_NAME}"
-        ASSET_NAME="${BINARY_NAME}.tar.gz"
-        LATEST_RELEASE_URL=$(curl -s https://api.github.com/repos/Start9Labs/start-cli/releases/latest | jq -r '.assets[] | select(.name=="'"$ASSET_NAME"'") | .browser_download_url')
-        curl -L "$LATEST_RELEASE_URL" -o start-cli.tar.gz
-        tar xzf start-cli.tar.gz
-        sudo mv "$BINARY_NAME" /usr/local/bin/start-cli
-        rm start-cli.tar.gz
+        curl -fsSL "$DOWNLOAD_URL" -o /tmp/start-cli
+        sudo install -m 755 /tmp/start-cli /usr/local/bin/start-cli
+        rm /tmp/start-cli
         echo ""
         echo "start-cli: $(start-cli --version)"
       shell: bash

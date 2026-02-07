@@ -10,10 +10,19 @@ on:
       REGISTRY:
         description: "The target registry"
         type: string
+      S3_S9PKS_BASE_URL:
+        description: "S3 base URL for package uploads (e.g. https://bucket.region.digitaloceanspaces.com)"
+        type: string
     secrets:
       DEV_KEY:
         description: "Developer signing key"
         required: true
+      S3_ACCESS_KEY:
+        description: "S3 access key for uploading packages"
+        required: false
+      S3_SECRET_KEY:
+        description: "S3 secret key for uploading packages"
+        required: false
 
 jobs:
   Build:
@@ -75,13 +84,41 @@ jobs:
           body_path: change-log.txt
           files: ./*.s9pk
 
+      - name: Upload to S3
+        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+        run: |
+          sudo apt-get install -y -qq s3cmd > /dev/null
+          S3_S9PKS_BASE_URL="${{ inputs.S3_S9PKS_BASE_URL }}"
+          HOST="${S3_S9PKS_BASE_URL#https://}"
+          BUCKET="${HOST%%.*}"
+          ENDPOINT="${HOST#*.}"
+          cat > ~/.s3cfg <<EOF
+          [default]
+          access_key = ${{ secrets.S3_ACCESS_KEY }}
+          secret_key = ${{ secrets.S3_SECRET_KEY }}
+          host_base = ${ENDPOINT}
+          host_bucket = %(bucket)s.${ENDPOINT}
+          use_https = True
+          EOF
+          for s9pk in *.s9pk; do
+            echo "Uploading ${s9pk} to s3://${BUCKET}/${s9pk}..."
+            s3cmd put "$s9pk" "s3://${BUCKET}/${s9pk}" --acl-public
+          done
+        shell: bash
+
       - name: Publish to Registry
         run: |
           REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
-          BASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          S3_URL="${{ inputs.S3_S9PKS_BASE_URL }}"
           for s9pk in *.s9pk; do
             echo "Publishing ${s9pk}..."
-            start-cli --registry "$REGISTRY" registry package add "$s9pk" --url "${BASE_URL}/${s9pk}"
+            URLS=""
+            if [ -n "$S3_URL" ]; then
+              URLS="--url=${S3_URL}/${s9pk}"
+            fi
+            URLS="${URLS} --url=${GH_URL}/${s9pk}"
+            start-cli --registry "$REGISTRY" registry package add "$s9pk" ${URLS}
           done
         shell: bash
 

@@ -33,6 +33,6 @@ jobs:
     if: always()
     steps:
       - name: Delete temporary build artifact
-        uses: geekyeggo/delete-artifact@v5
-        with:
-          name: build-output
+        run: gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '.artifacts[] | select(.name=="build-output") | .id')" 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}

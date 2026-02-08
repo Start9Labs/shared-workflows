@@ -75,6 +75,27 @@ jobs:
           echo '```' >> change-log.txt
         shell: bash
 
+      - name: Filter s9pk files for GitHub release
+        id: filter_s9pk
+        run: |
+          GH_MAX_SIZE=$((2 * 1024 * 1024 * 1024))
+          RELEASE_FILES=""
+          for s9pk in *.s9pk; do
+            SIZE=$(stat --format=%s "$s9pk")
+            if [ "$SIZE" -ge "$GH_MAX_SIZE" ]; then
+              echo "::warning::${s9pk} ($(numfmt --to=iec-i --suffix=B "$SIZE")) exceeds GitHub's 2 GiB limit and will not be uploaded to the release"
+            else
+              RELEASE_FILES="${RELEASE_FILES}./${s9pk}"$'\n'
+              echo "$s9pk" >> .gh_release_files
+            fi
+          done
+          {
+            echo "release_files<<RELEASE_FILES_EOF"
+            printf '%s' "$RELEASE_FILES"
+            echo "RELEASE_FILES_EOF"
+          } >> "$GITHUB_OUTPUT"
+        shell: bash
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -82,7 +103,7 @@ jobs:
           name: ${{ github.ref_name }}
           prerelease: true
           body_path: change-log.txt
-          files: ./*.s9pk
+          files: ${{ steps.filter_s9pk.outputs.release_files }}
 
       - name: Upload to S3
         if: ${{ inputs.S3_S9PKS_BASE_URL }}
@@ -117,7 +138,9 @@ jobs:
             if [ -n "$S3_URL" ]; then
               URLS="--url=${S3_URL}/${s9pk}"
             fi
-            URLS="${URLS} --url=${GH_URL}/${s9pk}"
+            if [ -f .gh_release_files ] && grep -qxF "$s9pk" .gh_release_files; then
+              URLS="${URLS} --url=${GH_URL}/${s9pk}"
+            fi
             start-cli --registry "$REGISTRY" registry package add "$s9pk" ${URLS}
           done
         shell: bash

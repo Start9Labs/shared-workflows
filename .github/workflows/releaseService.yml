@@ -96,11 +96,16 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         shell: bash
 
+      - name: Format release name
+        id: release_name
+        run: echo "name=${GITHUB_REF_NAME//_/:}" >> "$GITHUB_OUTPUT"
+        shell: bash
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: ${{ steps.release_name.outputs.name }}
           prerelease: true
           body_path: change-log.txt
           files: ${{ steps.filter_s9pk.outputs.release_files }}

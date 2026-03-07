@@ -110,13 +110,12 @@ jobs:
           body_path: change-log.txt
           files: ${{ steps.filter_s9pk.outputs.release_files }}
 
-      - name: Upload to S3
+      - name: Configure S3
         if: ${{ inputs.S3_S9PKS_BASE_URL }}
         run: |
           sudo apt-get install -y -qq s3cmd > /dev/null
           S3_S9PKS_BASE_URL="${{ inputs.S3_S9PKS_BASE_URL }}"
           HOST="${S3_S9PKS_BASE_URL#https://}"
-          BUCKET="${HOST%%.*}"
           ENDPOINT="${HOST#*.}"
           cat > ~/.s3cfg <<EOF
           [default]
@@ -126,27 +125,27 @@ jobs:
           host_bucket = %(bucket)s.${ENDPOINT}
           use_https = True
           EOF
-          for s9pk in *.s9pk; do
-            echo "Uploading ${s9pk} to s3://${BUCKET}/${s9pk}..."
-            s3cmd put "$s9pk" "s3://${BUCKET}/${s9pk}" --acl-public
-          done
         shell: bash
 
       - name: Publish to Registry
+        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+        run: |
+          REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          for s9pk in *.s9pk; do
+            echo "Publishing ${s9pk}..."
+            start-cli --registry "$REGISTRY" --s9pk-s3base "${{ inputs.S3_S9PKS_BASE_URL }}" s9pk publish "$s9pk"
+          done
+        shell: bash
+
+      - name: Add GitHub release mirrors
         run: |
           REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
           GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}"
-          S3_URL="${{ inputs.S3_S9PKS_BASE_URL }}"
           for s9pk in *.s9pk; do
-            echo "Publishing ${s9pk}..."
-            URLS=""
-            if [ -n "$S3_URL" ]; then
-              URLS="--url=${S3_URL}/${s9pk}"
-            fi
             if [ -f .gh_release_files ] && grep -qxF "$s9pk" .gh_release_files; then
-              URLS="${URLS} --url=${GH_URL}/${s9pk}"
+              echo "Adding GitHub mirror for ${s9pk}..."
+              start-cli --registry "$REGISTRY" registry package add-mirror "$s9pk" "${GH_URL}/${s9pk}"
             fi
-            start-cli --registry "$REGISTRY" registry package add "$s9pk" ${URLS}
           done
         shell: bash
 

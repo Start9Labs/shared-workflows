@@ -16,12 +16,12 @@ jobs:
         s9pk: ${{ fromJson(inputs.s9pk_matrix) }}
     steps:
       - name: Download build output
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 
       - name: Upload ${{ matrix.s9pk }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.s9pk }}
           path: ./${{ matrix.s9pk }}

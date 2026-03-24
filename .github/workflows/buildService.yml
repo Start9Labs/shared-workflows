@@ -26,7 +26,7 @@ jobs:
         uses: start9labs/shared-workflows/.github/actions/setup-build-env@master
 
       - name: Checkout services repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -52,7 +52,7 @@ jobs:
         shell: bash
 
       - name: Upload build output
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: build-output
           path: ./*.s9pk

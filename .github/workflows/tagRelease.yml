@@ -1,0 +1,92 @@
+name: Tag Release
+
+on:
+  workflow_call:
+    inputs:
+      PROD_REGISTRY:
+        description: "Production registry to check for existing versions"
+        type: string
+        required: true
+
+jobs:
+  TagRelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install start-cli
+        run: |
+          ARCH=$(uname -m)
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ASSET_NAME="start-cli_${ARCH}-${OS}"
+          DOWNLOAD_URL=$(curl -fsS \
+            -H "Authorization: token ${{ github.token }}" \
+            https://api.github.com/repos/Start9Labs/start-os/releases \
+            | jq -r '[.[].assets[] | select(.name=="'"$ASSET_NAME"'")] | first | .browser_download_url')
+          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+            echo "Error: Could not find asset '$ASSET_NAME' in Start9Labs/start-os releases"
+            exit 1
+          fi
+          curl -fsSL \
+            -H "Authorization: token ${{ github.token }}" \
+            -H "Accept: application/octet-stream" \
+            "$DOWNLOAD_URL" -o /tmp/start-cli
+          sudo install -m 755 /tmp/start-cli /usr/local/bin/start-cli
+          rm /tmp/start-cli
+          echo "start-cli: $(start-cli --version)"
+        shell: bash
+
+      - name: Extract package ID and version
+        id: extract
+        uses: start9labs/shared-workflows/.github/actions/extract-version@master
+
+      - name: Check production registry
+        run: |
+          PACKAGE_ID="${{ steps.extract.outputs.package_id }}"
+          VERSION="${{ steps.extract.outputs.version }}"
+          PROD_REGISTRY="${{ inputs.PROD_REGISTRY }}"
+
+          echo "Checking if ${PACKAGE_ID}@${VERSION} exists on ${PROD_REGISTRY}..."
+
+          OUTPUT=$(start-cli --registry="${PROD_REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::error::Failed to query production registry: ${OUTPUT}"
+            exit 1
+          fi
+
+          if [ -n "$OUTPUT" ]; then
+            echo "::error::Version ${VERSION} of ${PACKAGE_ID} already exists on ${PROD_REGISTRY}. Did you forget to bump the version?"
+            exit 1
+          fi
+
+          echo "Version ${VERSION} not found on production registry. Proceeding."
+        shell: bash
+
+      - name: Delete existing tag and release
+        run: |
+          TAG="${{ steps.extract.outputs.tag }}"
+
+          # Delete GitHub release if it exists
+          gh release delete "${TAG}" --yes 2>/dev/null || true
+
+          # Delete remote tag if it exists
+          if git ls-remote --tags origin "${TAG}" | grep -q .; then
+            echo "Deleting existing remote tag ${TAG}..."
+            git push origin ":refs/tags/${TAG}"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+
+      - name: Create release tag
+        run: |
+          TAG="${{ steps.extract.outputs.tag }}"
+          echo "Creating tag ${TAG}..."
+          git tag "${TAG}"
+          git push origin "${TAG}"
+        shell: bash

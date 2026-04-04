@@ -4,12 +4,15 @@ Reusable GitHub Actions workflows for building, tagging, and releasing StartOS s
 
 ## How It Works
 
-The CI pipeline has three stages, each triggered automatically by the previous:
+The CI pipeline has two automatic stages, plus an optional manual path:
 
 ```
 PR opened/updated ──> Build
 PR merged to master ──> Version check ──> Tag ──> Build ──> Release ──> Publish
+Manual tag push ──> Build ──> Release ──> Publish (bypasses version check)
 ```
+
+Tags created by GitHub Actions (via `GITHUB_TOKEN`) do not trigger other workflows. The tag pushed by **tagAndRelease** will *not* trigger the **release.yml** caller workflow — instead, tagAndRelease calls release directly as a reusable workflow. The standalone **release.yml** caller only runs when a tag is pushed manually.
 
 ### 1. Build on PR
 
@@ -29,7 +32,7 @@ If the production registry is unreachable, the workflow fails rather than silent
 
 ### 3. Manual release
 
-You can also cut a tag manually and push it to trigger **release.yml** directly, bypassing the version check. This is useful for re-releasing or testing.
+You can push a tag manually to trigger **release.yml** directly, bypassing the version check. This is useful for re-releasing or testing. Note that only manually pushed tags trigger this workflow — tags created by **tagAndRelease** (via `GITHUB_TOKEN`) do not, since GitHub Actions does not trigger workflows from actions performed by `GITHUB_TOKEN`.
 
 ## Version Encoding
 
@@ -55,7 +58,7 @@ Checks the current version against a production registry, creates a release tag,
 
 ### release.yml
 
-Builds the service package(s), creates a GitHub release, and publishes to a registry. Can be called by tagAndRelease or triggered directly by a manual tag push.
+Builds the service package(s), creates a GitHub release, and publishes to a registry. Called by tagAndRelease as a reusable workflow, or triggered independently by a manual tag push.
 
 ### uploadArtifacts.yml
 
@@ -114,6 +117,10 @@ on:
     branches: ["master"]
     paths-ignore: ["*.md"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tag-and-release:
     uses: start9labs/shared-workflows/.github/workflows/tagAndRelease.yml@master
@@ -130,7 +137,9 @@ jobs:
       contents: write
 ```
 
-### 3. Release on manual tag (`.github/workflows/release.yml`, optional)
+### 3. Release on manual tag push (`.github/workflows/release.yml`, optional)
+
+This workflow only triggers on manually pushed tags — tags created by the tagAndRelease workflow (via `GITHUB_TOKEN`) do not trigger it.
 
 ```yaml
 name: Release

@@ -29,7 +29,7 @@ on:
         required: false
 
 jobs:
-  TagRelease:
+  Tag:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -114,10 +114,10 @@ jobs:
         shell: bash
 
   Release:
-    needs: TagRelease
+    needs: Tag
     uses: start9labs/shared-workflows/.github/workflows/release.yml@master
     with:
-      TAG: ${{ needs.TagRelease.outputs.tag }}
+      TAG: ${{ needs.Tag.outputs.tag }}
       FREE_DISK_SPACE: ${{ inputs.FREE_DISK_SPACE }}
       RELEASE_REGISTRY: ${{ inputs.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ inputs.S3_S9PKS_BASE_URL }}

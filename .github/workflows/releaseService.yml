@@ -96,16 +96,15 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Format release name
-        id: release_name
-        run: echo "name=${GITHUB_REF_NAME//_/:}" >> "$GITHUB_OUTPUT"
-        shell: bash
+      - name: Extract version
+        id: version
+        uses: start9labs/shared-workflows/.github/actions/extract-version@master
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ steps.release_name.outputs.name }}
+          name: ${{ steps.version.outputs.version }}
           prerelease: true
           body_path: change-log.txt
           files: ${{ steps.filter_s9pk.outputs.release_files }}
@@ -125,6 +124,26 @@ jobs:
           host_bucket = %(bucket)s.${ENDPOINT}
           use_https = True
           EOF
+        shell: bash
+
+      - name: Remove existing version from registry
+        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+        run: |
+          REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          PACKAGE_ID="${{ steps.version.outputs.package_id }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          OUTPUT=$(start-cli --registry="${REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::warning::Could not query registry: ${OUTPUT}"
+          elif [ -n "$OUTPUT" ]; then
+            echo "Version ${VERSION} already exists on ${REGISTRY}. Removing..."
+            start-cli --registry="${REGISTRY}" registry package remove "${PACKAGE_ID}" "${VERSION}"
+          else
+            echo "Version ${VERSION} not found on registry. Proceeding."
+          fi
         shell: bash
 
       - name: Publish to Registry

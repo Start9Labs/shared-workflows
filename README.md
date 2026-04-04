@@ -117,6 +117,7 @@ name: Tag Release
 on:
   push:
     branches: ['master']
+    paths-ignore: ['*.md']
 
 jobs:
   tag:

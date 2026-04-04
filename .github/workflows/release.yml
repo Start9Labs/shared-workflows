@@ -1,8 +1,12 @@
-name: Release Service
+name: Release
 
 on:
   workflow_call:
     inputs:
+      TAG:
+        description: "Release tag (defaults to github.ref_name for tag-triggered runs)"
+        type: string
+        default: ''
       FREE_DISK_SPACE:
         description: "Free up disk space before building"
         type: boolean
@@ -42,6 +46,7 @@ jobs:
       - name: Checkout services repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.TAG || github.ref_name }}
           submodules: recursive
 
       - name: Set up developer signing key
@@ -103,7 +108,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.TAG || github.ref_name }}
           name: ${{ steps.version.outputs.version }}
           prerelease: true
           body_path: change-log.txt
@@ -159,7 +164,8 @@ jobs:
       - name: Add GitHub release mirrors
         run: |
           REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
-          GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          TAG="${{ inputs.TAG || github.ref_name }}"
+          GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${TAG}"
           for s9pk in *.s9pk; do
             if [ -f .gh_release_files ] && grep -qxF "$s9pk" .gh_release_files; then
               echo "Adding GitHub mirror for ${s9pk}..."

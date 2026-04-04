@@ -1,4 +1,4 @@
-name: Build Service
+name: Build
 
 on:
   workflow_call:

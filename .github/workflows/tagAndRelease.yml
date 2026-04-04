@@ -1,18 +1,40 @@
-name: Tag Release
+name: Tag and Release
 
 on:
   workflow_call:
     inputs:
-      PROD_REGISTRY:
-        description: "Production registry to check for existing versions"
+      REFERENCE_REGISTRY:
+        description: "Registry where published versions are permanent (used to check if a version is already taken)"
         type: string
         required: true
+      FREE_DISK_SPACE:
+        description: "Free up disk space before building"
+        type: boolean
+        default: false
+      RELEASE_REGISTRY:
+        description: "Test registry to publish to"
+        type: string
+      S3_S9PKS_BASE_URL:
+        description: "S3 base URL for package uploads"
+        type: string
+    secrets:
+      DEV_KEY:
+        description: "Developer signing key"
+        required: true
+      S3_ACCESS_KEY:
+        description: "S3 access key for uploading packages"
+        required: false
+      S3_SECRET_KEY:
+        description: "S3 secret key for uploading packages"
+        required: false
 
 jobs:
   TagRelease:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.extract.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -47,11 +69,11 @@ jobs:
         run: |
           PACKAGE_ID="${{ steps.extract.outputs.package_id }}"
           VERSION="${{ steps.extract.outputs.version }}"
-          PROD_REGISTRY="${{ inputs.PROD_REGISTRY }}"
+          REFERENCE_REGISTRY="${{ inputs.REFERENCE_REGISTRY }}"
 
-          echo "Checking if ${PACKAGE_ID}@${VERSION} exists on ${PROD_REGISTRY}..."
+          echo "Checking if ${PACKAGE_ID}@${VERSION} exists on ${REFERENCE_REGISTRY}..."
 
-          OUTPUT=$(start-cli --registry="${PROD_REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
+          OUTPUT=$(start-cli --registry="${REFERENCE_REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
           EXIT_CODE=$?
 
           if [ $EXIT_CODE -ne 0 ]; then
@@ -60,7 +82,7 @@ jobs:
           fi
 
           if [ -n "$OUTPUT" ]; then
-            echo "::error::Version ${VERSION} of ${PACKAGE_ID} already exists on ${PROD_REGISTRY}. Did you forget to bump the version?"
+            echo "::error::Version ${VERSION} of ${PACKAGE_ID} already exists on ${REFERENCE_REGISTRY}. Did you forget to bump the version?"
             exit 1
           fi
 
@@ -90,3 +112,16 @@ jobs:
           git tag "${TAG}"
           git push origin "${TAG}"
         shell: bash
+
+  Release:
+    needs: TagRelease
+    uses: start9labs/shared-workflows/.github/workflows/release.yml@master
+    with:
+      TAG: ${{ needs.TagRelease.outputs.tag }}
+      FREE_DISK_SPACE: ${{ inputs.FREE_DISK_SPACE }}
+      RELEASE_REGISTRY: ${{ inputs.RELEASE_REGISTRY }}
+      S3_S9PKS_BASE_URL: ${{ inputs.S3_S9PKS_BASE_URL }}
+    secrets:
+      DEV_KEY: ${{ secrets.DEV_KEY }}
+      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}

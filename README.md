@@ -35,10 +35,10 @@ You can also cut a tag manually and push it to trigger **release.yml** directly,
 
 Versions are extracted from `startos/versions/index.ts` by the **extract-version** composite action. Tags strip the flavor prefix and replace `:` with `_`:
 
-| Version | Tag | Release Name |
-|---|---|---|
-| `2.0.0:2` | `v2.0.0_2` | `2.0.0:2` |
-| `29.3:5` | `v29.3_5` | `29.3:5` |
+| Version                | Tag              | Release Name           |
+| ---------------------- | ---------------- | ---------------------- |
+| `2.0.0:2`              | `v2.0.0_2`       | `2.0.0:2`              |
+| `29.3:5`               | `v29.3_5`        | `29.3:5`               |
 | `#knots:29.3:2-beta.1` | `v29.3_2-beta.1` | `#knots:29.3:2-beta.1` |
 
 The flavor is omitted from tags because each repo only produces one flavor. The full version (including flavor) is used as the GitHub release name.
@@ -87,8 +87,8 @@ name: Build
 on:
   workflow_dispatch:
   pull_request:
-    branches: ['master']
-    paths-ignore: ['*.md']
+    branches: ["master"]
+    paths-ignore: ["*.md"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -111,16 +111,16 @@ name: Tag and Release
 
 on:
   push:
-    branches: ['master']
-    paths-ignore: ['*.md']
+    branches: ["master"]
+    paths-ignore: ["*.md"]
 
 jobs:
   tag-and-release:
     uses: start9labs/shared-workflows/.github/workflows/tagAndRelease.yml@master
     with:
-      PROD_REGISTRY: ${{ vars.PROD_REGISTRY }}
+      REFERENCE_REGISTRY: ${{ vars.REFERENCE_REGISTRY }}
       # FREE_DISK_SPACE: true
-      REGISTRY: ${{ vars.TEST_REGISTRY }}
+      RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ vars.S3_S9PKS_BASE_URL }}
     secrets:
       DEV_KEY: ${{ secrets.DEV_KEY }}
@@ -138,14 +138,14 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*'
+      - "v*.*"
 
 jobs:
   release:
     uses: start9labs/shared-workflows/.github/workflows/release.yml@master
     with:
       # FREE_DISK_SPACE: true
-      REGISTRY: ${{ vars.TEST_REGISTRY }}
+      RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ vars.S3_S9PKS_BASE_URL }}
     secrets:
       DEV_KEY: ${{ secrets.DEV_KEY }}
@@ -159,16 +159,16 @@ jobs:
 
 ### Repository Secrets
 
-| Secret | Used by | Description |
-|---|---|---|
-| `DEV_KEY` | build, release | Developer signing key |
-| `S3_ACCESS_KEY` | release | S3 access key for package uploads |
-| `S3_SECRET_KEY` | release | S3 secret key for package uploads |
+| Secret          | Used by        | Description                       |
+| --------------- | -------------- | --------------------------------- |
+| `DEV_KEY`       | build, release | Developer signing key             |
+| `S3_ACCESS_KEY` | release        | S3 access key for package uploads |
+| `S3_SECRET_KEY` | release        | S3 secret key for package uploads |
 
 ### Repository Variables
 
-| Variable | Used by | Description |
-|---|---|---|
-| `PROD_REGISTRY` | tagAndRelease | Production registry URL (checked for existing versions) |
-| `TEST_REGISTRY` | release | Test registry URL (where releases are published) |
-| `S3_S9PKS_BASE_URL` | release | S3 base URL for package uploads |
+| Variable             | Used by       | Description                                                                     |
+| -------------------- | ------------- | ------------------------------------------------------------------------------- |
+| `REFERENCE_REGISTRY` | tagAndRelease | Registry where published versions are permanent (checked for existing versions) |
+| `RELEASE_REGISTRY`   | release       | Registry URL (where releases are published)                                     |
+| `S3_S9PKS_BASE_URL`  | release       | S3 base URL for package uploads                                                 |

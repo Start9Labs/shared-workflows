@@ -6,13 +6,13 @@ on:
       TAG:
         description: "Release tag (defaults to github.ref_name for tag-triggered runs)"
         type: string
-        default: ''
+        default: ""
       FREE_DISK_SPACE:
         description: "Free up disk space before building"
         type: boolean
         default: false
-      REGISTRY:
-        description: "The target registry"
+      RELEASE_REGISTRY:
+        description: "The registry to publish to"
         type: string
       S3_S9PKS_BASE_URL:
         description: "S3 base URL for package uploads (e.g. https://bucket.region.digitaloceanspaces.com)"
@@ -134,7 +134,7 @@ jobs:
       - name: Remove existing version from registry
         if: ${{ inputs.S3_S9PKS_BASE_URL }}
         run: |
-          REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
           PACKAGE_ID="${{ steps.version.outputs.package_id }}"
           VERSION="${{ steps.version.outputs.version }}"
 
@@ -154,7 +154,7 @@ jobs:
       - name: Publish to Registry
         if: ${{ inputs.S3_S9PKS_BASE_URL }}
         run: |
-          REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
           for s9pk in *.s9pk; do
             echo "Publishing ${s9pk}..."
             start-cli --registry "$REGISTRY" --s9pk-s3base "${{ inputs.S3_S9PKS_BASE_URL }}" s9pk publish "$s9pk"
@@ -163,7 +163,7 @@ jobs:
 
       - name: Add GitHub release mirrors
         run: |
-          REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
           TAG="${{ inputs.TAG || github.ref_name }}"
           GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${TAG}"
           for s9pk in *.s9pk; do

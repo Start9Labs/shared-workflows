@@ -3,16 +3,16 @@ name: Tag and Release
 on:
   workflow_call:
     inputs:
-      PROD_REGISTRY:
-        description: "Production registry to check for existing versions"
+      REFERENCE_REGISTRY:
+        description: "Registry where published versions are permanent (used to check if a version is already taken)"
         type: string
         required: true
       FREE_DISK_SPACE:
         description: "Free up disk space before building"
         type: boolean
         default: false
-      REGISTRY:
-        description: "The target registry for publishing"
+      RELEASE_REGISTRY:
+        description: "Test registry to publish to"
         type: string
       S3_S9PKS_BASE_URL:
         description: "S3 base URL for package uploads"
@@ -69,11 +69,11 @@ jobs:
         run: |
           PACKAGE_ID="${{ steps.extract.outputs.package_id }}"
           VERSION="${{ steps.extract.outputs.version }}"
-          PROD_REGISTRY="${{ inputs.PROD_REGISTRY }}"
+          REFERENCE_REGISTRY="${{ inputs.REFERENCE_REGISTRY }}"
 
-          echo "Checking if ${PACKAGE_ID}@${VERSION} exists on ${PROD_REGISTRY}..."
+          echo "Checking if ${PACKAGE_ID}@${VERSION} exists on ${REFERENCE_REGISTRY}..."
 
-          OUTPUT=$(start-cli --registry="${PROD_REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
+          OUTPUT=$(start-cli --registry="${REFERENCE_REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
           EXIT_CODE=$?
 
           if [ $EXIT_CODE -ne 0 ]; then
@@ -82,7 +82,7 @@ jobs:
           fi
 
           if [ -n "$OUTPUT" ]; then
-            echo "::error::Version ${VERSION} of ${PACKAGE_ID} already exists on ${PROD_REGISTRY}. Did you forget to bump the version?"
+            echo "::error::Version ${VERSION} of ${PACKAGE_ID} already exists on ${REFERENCE_REGISTRY}. Did you forget to bump the version?"
             exit 1
           fi
 
@@ -119,7 +119,7 @@ jobs:
     with:
       TAG: ${{ needs.TagRelease.outputs.tag }}
       FREE_DISK_SPACE: ${{ inputs.FREE_DISK_SPACE }}
-      REGISTRY: ${{ inputs.REGISTRY }}
+      RELEASE_REGISTRY: ${{ inputs.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ inputs.S3_S9PKS_BASE_URL }}
     secrets:
       DEV_KEY: ${{ secrets.DEV_KEY }}

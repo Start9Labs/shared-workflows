@@ -126,6 +126,26 @@ jobs:
           EOF
         shell: bash
 
+      - name: Remove existing version from registry
+        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+        run: |
+          REGISTRY="${{ inputs.REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          PACKAGE_ID="${{ steps.version.outputs.package_id }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          OUTPUT=$(start-cli --registry="${REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::warning::Could not query registry: ${OUTPUT}"
+          elif [ -n "$OUTPUT" ]; then
+            echo "Version ${VERSION} already exists on ${REGISTRY}. Removing..."
+            start-cli --registry="${REGISTRY}" registry package remove "${PACKAGE_ID}" "${VERSION}"
+          else
+            echo "Version ${VERSION} not found on registry. Proceeding."
+          fi
+        shell: bash
+
       - name: Publish to Registry
         if: ${{ inputs.S3_S9PKS_BASE_URL }}
         run: |

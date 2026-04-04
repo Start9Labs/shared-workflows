@@ -35,6 +35,7 @@ jobs:
       contents: write
     outputs:
       tag: ${{ steps.extract.outputs.tag }}
+      skip: ${{ steps.check.outputs.skip }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -66,6 +67,7 @@ jobs:
         uses: start9labs/shared-workflows/.github/actions/extract-version@master
 
       - name: Check production registry
+        id: check
         run: |
           PACKAGE_ID="${{ steps.extract.outputs.package_id }}"
           VERSION="${{ steps.extract.outputs.version }}"
@@ -82,14 +84,16 @@ jobs:
           fi
 
           if [ -n "$OUTPUT" ]; then
-            echo "::error::Version ${VERSION} of ${PACKAGE_ID} already exists on ${REFERENCE_REGISTRY}. Did you forget to bump the version?"
-            exit 1
+            echo "Version ${VERSION} of ${PACKAGE_ID} already exists on ${REFERENCE_REGISTRY}. Skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version ${VERSION} not found on production registry. Proceeding."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-
-          echo "Version ${VERSION} not found on production registry. Proceeding."
         shell: bash
 
       - name: Delete existing tag and release
+        if: steps.check.outputs.skip == 'false'
         run: |
           TAG="${{ steps.extract.outputs.tag }}"
 
@@ -106,6 +110,7 @@ jobs:
         shell: bash
 
       - name: Create release tag
+        if: steps.check.outputs.skip == 'false'
         run: |
           TAG="${{ steps.extract.outputs.tag }}"
           echo "Creating tag ${TAG}..."
@@ -115,6 +120,7 @@ jobs:
 
   Release:
     needs: Tag
+    if: needs.Tag.outputs.skip == 'false'
     uses: start9labs/shared-workflows/.github/workflows/release.yml@master
     with:
       TAG: ${{ needs.Tag.outputs.tag }}

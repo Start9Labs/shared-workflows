@@ -24,7 +24,7 @@ When a PR is merged to `master`, **tagAndRelease.yml** runs:
 
 1. Extracts the package ID and current version from source (via the **extract-version** action)
 2. Queries the production registry to check if that version already exists
-3. If it exists, the workflow **fails** — you forgot to bump the version
+3. If it exists, the workflow **skips** the release gracefully — no tag is created, no build runs
 4. If it doesn't exist, deletes any prior GitHub release and tag for that version, then creates a fresh tag
 5. Calls **release.yml** to build, create a GitHub release, and publish to the test registry
 
@@ -54,7 +54,7 @@ Builds the service package(s). Does not publish or create releases. If `DEV_KEY`
 
 ### tagAndRelease.yml
 
-Checks the current version against a production registry, creates a release tag, then calls **release.yml** to build and publish.
+Checks the current version against a production registry. If the version already exists, the workflow exits gracefully without building. Otherwise, creates a release tag and calls **release.yml** to build and publish.
 
 ### release.yml
 

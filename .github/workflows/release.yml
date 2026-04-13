@@ -132,9 +132,9 @@ jobs:
         shell: bash
 
       - name: Remove existing version from registry
-        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+        if: ${{ inputs.RELEASE_REGISTRY }}
         run: |
-          REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          REGISTRY="${{ inputs.RELEASE_REGISTRY }}"
           PACKAGE_ID="${{ steps.version.outputs.package_id }}"
           VERSION="${{ steps.version.outputs.version }}"
 
@@ -151,26 +151,42 @@ jobs:
           fi
         shell: bash
 
-      - name: Publish to Registry
-        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+      - name: Publish to Registry via S3
+        if: ${{ inputs.RELEASE_REGISTRY && inputs.S3_S9PKS_BASE_URL }}
         run: |
-          REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          REGISTRY="${{ inputs.RELEASE_REGISTRY }}"
           for s9pk in *.s9pk; do
-            echo "Publishing ${s9pk}..."
+            echo "Publishing ${s9pk} via S3..."
             start-cli --registry "$REGISTRY" --s9pk-s3base "${{ inputs.S3_S9PKS_BASE_URL }}" s9pk publish "$s9pk"
           done
         shell: bash
 
       - name: Add GitHub release mirrors
-        if: ${{ inputs.S3_S9PKS_BASE_URL }}
+        if: ${{ inputs.RELEASE_REGISTRY && inputs.S3_S9PKS_BASE_URL }}
         run: |
-          REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
+          REGISTRY="${{ inputs.RELEASE_REGISTRY }}"
           TAG="${{ inputs.TAG || github.ref_name }}"
           GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${TAG}"
           for s9pk in *.s9pk; do
             if [ -f .gh_release_files ] && grep -qxF "$s9pk" .gh_release_files; then
               echo "Adding GitHub mirror for ${s9pk}..."
               start-cli --registry "$REGISTRY" registry package add-mirror "$s9pk" "${GH_URL}/${s9pk}"
+            fi
+          done
+        shell: bash
+
+      - name: Publish to Registry via GitHub
+        if: ${{ inputs.RELEASE_REGISTRY && !inputs.S3_S9PKS_BASE_URL }}
+        run: |
+          REGISTRY="${{ inputs.RELEASE_REGISTRY }}"
+          TAG="${{ inputs.TAG || github.ref_name }}"
+          GH_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/${TAG}"
+          for s9pk in *.s9pk; do
+            if [ -f .gh_release_files ] && grep -qxF "$s9pk" .gh_release_files; then
+              echo "Publishing ${s9pk} via GitHub release..."
+              start-cli --registry "$REGISTRY" registry package add "$s9pk" --url "${GH_URL}/${s9pk}"
+            else
+              echo "::warning::${s9pk} was not uploaded to GitHub release (exceeds 2 GiB?), skipping registry publish."
             fi
           done
         shell: bash

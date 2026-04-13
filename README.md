@@ -8,8 +8,8 @@ The CI pipeline has two automatic stages, plus an optional manual path:
 
 ```
 PR opened/updated ──> Build
-PR merged to master ──> Version check ──> Tag ──> Build ──> Release ──> Publish
-Manual tag push ──> Build ──> Release ──> Publish (bypasses version check)
+PR merged to master ──> Version check ──> Tag ──> Build ──> GitHub Release ──> [Publish to registry]
+Manual tag push ──> Build ──> GitHub Release ──> [Publish to registry] (bypasses version check)
 ```
 
 Tags created by GitHub Actions (via `GITHUB_TOKEN`) do not trigger other workflows. The tag pushed by **tagAndRelease** will *not* trigger the **release.yml** caller workflow — instead, tagAndRelease calls release directly as a reusable workflow. The standalone **release.yml** caller only runs when a tag is pushed manually.
@@ -26,7 +26,7 @@ When a PR is merged to `master`, **tagAndRelease.yml** runs:
 2. Queries the production registry to check if that version already exists
 3. If it exists, the workflow **skips** the release gracefully — no tag is created, no build runs
 4. If it doesn't exist, deletes any prior GitHub release and tag for that version, then creates a fresh tag
-5. Calls **release.yml** to build, create a GitHub release, and publish to the test registry
+5. Calls **release.yml** to build, create a GitHub release, and (if S3 is configured) publish to the test registry
 
 If the production registry is unreachable, the workflow fails rather than silently proceeding.
 
@@ -58,7 +58,9 @@ Checks the current version against a production registry. If the version already
 
 ### release.yml
 
-Builds the service package(s), creates a GitHub release, and publishes to a registry. Called by tagAndRelease as a reusable workflow, or triggered independently by a manual tag push.
+Builds the service package(s), creates a GitHub release, and (optionally) publishes to a StartOS registry. Called by tagAndRelease as a reusable workflow, or triggered independently by a manual tag push.
+
+Registry publishing is gated on `S3_S9PKS_BASE_URL`: if it is not provided, the workflow builds and creates the GitHub release but skips S3 upload, registry publish, and GitHub mirror registration. This lets forks and downstream packagers use these workflows with only a GitHub release as the distribution channel.
 
 ### uploadArtifacts.yml
 
@@ -109,6 +111,8 @@ jobs:
 
 ### 2. Tag and release on merge (`.github/workflows/tagAndRelease.yml`)
 
+`REFERENCE_REGISTRY` is required — it's the registry queried to decide whether the current version has already been released (and should therefore be skipped). The `RELEASE_REGISTRY` / `S3_S9PKS_BASE_URL` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` inputs are only needed if you want to publish the built package to a StartOS registry. If you omit them, the workflow still runs — it tags, builds, and creates a GitHub release, and stops there.
+
 ```yaml
 name: Tag and Release
 
@@ -127,10 +131,12 @@ jobs:
     with:
       REFERENCE_REGISTRY: ${{ vars.REFERENCE_REGISTRY }}
       # FREE_DISK_SPACE: true
+      # Optional — omit these to publish only to GitHub Releases:
       RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ vars.S3_S9PKS_BASE_URL }}
     secrets:
       DEV_KEY: ${{ secrets.DEV_KEY }}
+      # Optional — omit these to publish only to GitHub Releases:
       S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
       S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
     permissions:
@@ -139,7 +145,7 @@ jobs:
 
 ### 3. Release on manual tag push (`.github/workflows/release.yml`, optional)
 
-This workflow only triggers on manually pushed tags — tags created by the tagAndRelease workflow (via `GITHUB_TOKEN`) do not trigger it.
+This workflow only triggers on manually pushed tags — tags created by the tagAndRelease workflow (via `GITHUB_TOKEN`) do not trigger it. As with tagAndRelease, the registry / S3 inputs are optional; omit them to produce only a GitHub release.
 
 ```yaml
 name: Release
@@ -154,10 +160,12 @@ jobs:
     uses: start9labs/shared-workflows/.github/workflows/release.yml@master
     with:
       # FREE_DISK_SPACE: true
+      # Optional — omit these to publish only to GitHub Releases:
       RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ vars.S3_S9PKS_BASE_URL }}
     secrets:
       DEV_KEY: ${{ secrets.DEV_KEY }}
+      # Optional — omit these to publish only to GitHub Releases:
       S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
       S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
     permissions:
@@ -166,18 +174,20 @@ jobs:
 
 ## Required Secrets and Variables
 
+Only `DEV_KEY` (for signed builds) and `REFERENCE_REGISTRY` (for tagAndRelease) are truly required. Everything else is optional — if the S3 / registry inputs are omitted, `release.yml` skips registry publishing and distributes packages exclusively through GitHub Releases.
+
 ### Repository Secrets
 
-| Secret          | Used by        | Description                       |
-| --------------- | -------------- | --------------------------------- |
-| `DEV_KEY`       | build, release | Developer signing key             |
-| `S3_ACCESS_KEY` | release        | S3 access key for package uploads |
-| `S3_SECRET_KEY` | release        | S3 secret key for package uploads |
+| Secret          | Used by        | Required?                  | Description                                                        |
+| --------------- | -------------- | -------------------------- | ------------------------------------------------------------------ |
+| `DEV_KEY`       | build, release | release: yes; build: no    | Developer signing key. If absent in build, a temporary key is used |
+| `S3_ACCESS_KEY` | release        | only if publishing to S3   | S3 access key for package uploads                                  |
+| `S3_SECRET_KEY` | release        | only if publishing to S3   | S3 secret key for package uploads                                  |
 
 ### Repository Variables
 
-| Variable             | Used by       | Description                                                                     |
-| -------------------- | ------------- | ------------------------------------------------------------------------------- |
-| `REFERENCE_REGISTRY` | tagAndRelease | Registry where published versions are permanent (checked for existing versions) |
-| `RELEASE_REGISTRY`   | release       | Registry URL (where releases are published)                                     |
-| `S3_S9PKS_BASE_URL`  | release       | S3 base URL for package uploads                                                 |
+| Variable             | Used by       | Required?                | Description                                                                     |
+| -------------------- | ------------- | ------------------------ | ------------------------------------------------------------------------------- |
+| `REFERENCE_REGISTRY` | tagAndRelease | yes                      | Registry where published versions are permanent (checked for existing versions) |
+| `RELEASE_REGISTRY`   | release       | only if publishing       | Registry URL (where releases are published)                                     |
+| `S3_S9PKS_BASE_URL`  | release       | only if publishing to S3 | S3 base URL for package uploads. Acts as the on/off switch for registry publish |

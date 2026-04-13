@@ -162,6 +162,7 @@ jobs:
         shell: bash
 
       - name: Add GitHub release mirrors
+        if: ${{ inputs.S3_S9PKS_BASE_URL }}
         run: |
           REGISTRY="${{ inputs.RELEASE_REGISTRY || 'https://alpha-registry-x.start9.com' }}"
           TAG="${{ inputs.TAG || github.ref_name }}"

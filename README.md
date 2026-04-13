@@ -8,8 +8,12 @@ The CI pipeline has two automatic stages, plus an optional manual path:
 
 ```
 PR opened/updated ──> Build
-PR merged to master ──> Version check ──> Tag ──> Build ──> GitHub Release ──> [Publish to registry]
-Manual tag push ──> Build ──> GitHub Release ──> [Publish to registry] (bypasses version check)
+PR merged to master ──> Version check ──> Tag ──> Build ──> GitHub Release ──> [Registry publish*]
+Manual tag push ──> Build ──> GitHub Release ──> [Registry publish*] (bypasses version check)
+
+* Registry publish only runs if RELEASE_REGISTRY is set. With S3 configured, S3 is the primary
+  package URL and the GitHub release asset is added as a mirror. Without S3, the GitHub release
+  asset is used as the package URL directly.
 ```
 
 Tags created by GitHub Actions (via `GITHUB_TOKEN`) do not trigger other workflows. The tag pushed by **tagAndRelease** will *not* trigger the **release.yml** caller workflow — instead, tagAndRelease calls release directly as a reusable workflow. The standalone **release.yml** caller only runs when a tag is pushed manually.
@@ -60,7 +64,18 @@ Checks the current version against a production registry. If the version already
 
 Builds the service package(s), creates a GitHub release, and (optionally) publishes to a StartOS registry. Called by tagAndRelease as a reusable workflow, or triggered independently by a manual tag push.
 
-Registry publishing is gated on `S3_S9PKS_BASE_URL`: if it is not provided, the workflow builds and creates the GitHub release but skips S3 upload, registry publish, and GitHub mirror registration. This lets forks and downstream packagers use these workflows with only a GitHub release as the distribution channel.
+Publishing behavior depends on which inputs are set:
+
+| `RELEASE_REGISTRY` | `S3_S9PKS_BASE_URL` | Result                                                                                                          |
+| :----------------: | :-----------------: | --------------------------------------------------------------------------------------------------------------- |
+|       unset        |        unset        | GitHub release only                                                                                             |
+|        set         |        unset        | GitHub release + registry publish pointing at the GitHub release asset URL (no S3 required)                     |
+|        set         |         set         | GitHub release + registry publish with S3 as the primary download URL and the GitHub release asset as a mirror  |
+|       unset        |         set         | GitHub release only (S3 is ignored without a registry to publish to)                                             |
+
+There is no default for `RELEASE_REGISTRY` — it must be set explicitly (typically as a repo or org variable) to enable registry publishing.
+
+Without S3, every `.s9pk` produced by the build must fit inside GitHub's 2 GiB release-asset limit, since the GitHub release asset is the package URL. **If any file exceeds that limit and S3 is not configured, the workflow fails hard before the GitHub release is created** — no partial release, no registry churn. The developer must either shrink the offending `.s9pk` or configure S3 to host large packages. When S3 is configured, oversize files are still excluded from the GitHub release (per GitHub's limit) but are published via S3 normally, so the registry ends up complete.
 
 ### uploadArtifacts.yml
 
@@ -174,20 +189,24 @@ jobs:
 
 ## Required Secrets and Variables
 
-Only `DEV_KEY` (for signed builds) and `REFERENCE_REGISTRY` (for tagAndRelease) are truly required. Everything else is optional — if the S3 / registry inputs are omitted, `release.yml` skips registry publishing and distributes packages exclusively through GitHub Releases.
+Only `DEV_KEY` (for signed builds) and `REFERENCE_REGISTRY` (for tagAndRelease) are truly required. Everything else is optional:
+
+- Omit `RELEASE_REGISTRY` to skip registry publishing entirely and distribute packages only through GitHub Releases.
+- Set `RELEASE_REGISTRY` without any S3 inputs to publish to the registry using the GitHub release asset as the package URL.
+- Set `RELEASE_REGISTRY` together with the S3 inputs to use S3 as the primary package URL and the GitHub release asset as a mirror.
 
 ### Repository Secrets
 
-| Secret          | Used by        | Required?                  | Description                                                        |
-| --------------- | -------------- | -------------------------- | ------------------------------------------------------------------ |
-| `DEV_KEY`       | build, release | release: yes; build: no    | Developer signing key. If absent in build, a temporary key is used |
-| `S3_ACCESS_KEY` | release        | only if publishing to S3   | S3 access key for package uploads                                  |
-| `S3_SECRET_KEY` | release        | only if publishing to S3   | S3 secret key for package uploads                                  |
+| Secret          | Used by        | Required?                | Description                                                        |
+| --------------- | -------------- | ------------------------ | ------------------------------------------------------------------ |
+| `DEV_KEY`       | build, release | release: yes; build: no  | Developer signing key. If absent in build, a temporary key is used |
+| `S3_ACCESS_KEY` | release        | only if S3 is configured | S3 access key for package uploads                                  |
+| `S3_SECRET_KEY` | release        | only if S3 is configured | S3 secret key for package uploads                                  |
 
 ### Repository Variables
 
-| Variable             | Used by       | Required?                | Description                                                                     |
-| -------------------- | ------------- | ------------------------ | ------------------------------------------------------------------------------- |
-| `REFERENCE_REGISTRY` | tagAndRelease | yes                      | Registry where published versions are permanent (checked for existing versions) |
-| `RELEASE_REGISTRY`   | release       | only if publishing       | Registry URL (where releases are published)                                     |
-| `S3_S9PKS_BASE_URL`  | release       | only if publishing to S3 | S3 base URL for package uploads. Acts as the on/off switch for registry publish |
+| Variable             | Used by       | Required?                                   | Description                                                                                                |
+| -------------------- | ------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `REFERENCE_REGISTRY` | tagAndRelease | yes                                         | Registry where published versions are permanent (checked for existing versions)                            |
+| `RELEASE_REGISTRY`   | release       | only if publishing to a registry            | Registry URL where releases are published. No default — must be set explicitly to enable registry publish  |
+| `S3_S9PKS_BASE_URL`  | release       | only if using S3 as primary package hosting | S3 base URL. When set, S3 is used as the primary package URL and the GitHub release asset becomes a mirror |

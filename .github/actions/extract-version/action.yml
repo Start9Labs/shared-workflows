@@ -8,7 +8,7 @@ outputs:
     description: "The full version string (e.g. 2.0.0:2 or #knots:29.3:2-beta.1)"
     value: ${{ steps.extract.outputs.version }}
   tag:
-    description: "The git tag (v prefix, flavor stripped, : replaced with _)"
+    description: "The git tag (v prefix, : replaced with _, flavor appended as -<flavor> when present)"
     value: ${{ steps.extract.outputs.tag }}
 runs:
   using: "composite"
@@ -46,9 +46,16 @@ runs:
         fi
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-        # Create tag name (v prefix, strip flavor, replace : with _)
+        # Create tag name: v<base>, or v<base>-<flavor> when VERSION has #flavor: prefix.
+        # Appending the flavor keeps tags unique when branches publish different flavors at the same base version.
+        if [[ "$VERSION" == \#* ]]; then
+          FLAVOR="${VERSION#\#}"
+          FLAVOR="${FLAVOR%%:*}"
+        else
+          FLAVOR=""
+        fi
         UNFLAVORED="${VERSION#\#*:}"
-        TAG="v${UNFLAVORED//:/_}"
+        TAG="v${UNFLAVORED//:/_}${FLAVOR:+-$FLAVOR}"
         echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
         echo "Package: ${PACKAGE_ID}"

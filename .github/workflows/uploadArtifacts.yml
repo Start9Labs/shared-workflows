@@ -26,6 +26,7 @@ jobs:
           name: ${{ matrix.s9pk }}
           path: ./${{ matrix.s9pk }}
           compression-level: 0
+          retention-days: 14
 
   Cleanup:
     needs: Upload

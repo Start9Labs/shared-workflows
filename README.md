@@ -77,11 +77,7 @@ There is no default for `RELEASE_REGISTRY` — it must be set explicitly (typica
 
 Without S3, every `.s9pk` produced by the build must fit inside GitHub's 2 GiB release-asset limit, since the GitHub release asset is the package URL. **If any file exceeds that limit and S3 is not configured, the workflow fails hard before the GitHub release is created** — no partial release, no registry churn. The developer must either shrink the offending `.s9pk` or configure S3 to host large packages. When S3 is configured, oversize files are still excluded from the GitHub release (per GitHub's limit) but are published via S3 normally, so the registry ends up complete.
 
-### uploadArtifacts.yml
-
-Internal workflow called by build and release. Splits the aggregated build output into individual artifacts per `.s9pk` file.
-
-## Composite Actions
+## Actions
 
 ### extract-version
 
@@ -94,6 +90,10 @@ Sets up the full build environment: Node.js, Rust, Docker, QEMU, and `start-cli`
 ### free-disk-space
 
 Frees disk space on the GitHub Actions runner by removing unused SDKs and tools.
+
+### upload-each
+
+JavaScript action that uploads every file matching a glob as its own individually-named artifact, from a single step. Used by build and release to publish each `.s9pk` as a separately downloadable artifact without the multi-job download/re-upload dance that `actions/upload-artifact@v4+` would otherwise require (it only emits one artifact per step). Wraps `@actions/artifact` directly; the bundled `dist/index.js` is committed and consumed by Actions.
 
 ## Usage
 

@@ -33,8 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      s9pk_matrix: ${{ steps.build.outputs.s9pk_matrix }}
     steps:
       - name: Free up disk space
         if: ${{ inputs.FREE_DISK_SPACE }}
@@ -56,11 +54,8 @@ jobs:
         shell: bash
 
       - name: Build the service packages
-        id: build
         run: |
           RUST_LOG=debug RUST_BACKTRACE=1 make
-          S9PK_JSON=$(ls *.s9pk | jq -R -s -c 'split("\n") | map(select(. != ""))')
-          echo "s9pk_matrix=${S9PK_JSON}" >> "$GITHUB_OUTPUT"
           echo ""
           echo "SHA256SUMs:"
           sha256sum *.s9pk
@@ -197,16 +192,9 @@ jobs:
           done
         shell: bash
 
-      - name: Upload build output
-        uses: actions/upload-artifact@v7
+      - name: Upload each s9pk as its own artifact
+        uses: start9labs/shared-workflows/.github/actions/upload-each@master
         with:
-          name: build-output
-          path: ./*.s9pk
+          pattern: "*.s9pk"
+          retention-days: 14
           compression-level: 0
-          retention-days: 1
-
-  UploadArtifacts:
-    needs: Build
-    uses: start9labs/shared-workflows/.github/workflows/uploadArtifacts.yml@master
-    with:
-      s9pk_matrix: ${{ needs.Build.outputs.s9pk_matrix }}

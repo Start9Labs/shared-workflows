@@ -115,7 +115,6 @@ jobs:
         with:
           tag_name: ${{ inputs.TAG || github.ref_name }}
           name: ${{ steps.version.outputs.version }}
-          prerelease: true
           body_path: change-log.txt
           files: ${{ steps.filter_s9pk.outputs.release_files }}
 

@@ -123,11 +123,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      # Publish doesn't build, but setup-build-env is currently the only
-      # place start-cli + node + jq are installed. A leaner setup-publish-env
-      # is a worthwhile follow-up.
-      - name: Setup build environment
-        uses: start9labs/shared-workflows/.github/actions/setup-build-env@master
+      - name: Setup publish environment
+        uses: start9labs/shared-workflows/.github/actions/setup-publish-env@master
 
       - name: Checkout services repository
         uses: actions/checkout@v6

@@ -159,10 +159,19 @@ jobs:
         if: ${{ inputs.RELEASE_REGISTRY && inputs.S3_S9PKS_BASE_URL }}
         run: |
           REGISTRY="${{ inputs.RELEASE_REGISTRY }}"
+          S3_BASE="${{ inputs.S3_S9PKS_BASE_URL }}"
+          pids=()
           for s9pk in *.s9pk; do
             echo "Publishing ${s9pk} via S3..."
-            start-cli --registry "$REGISTRY" --s9pk-s3base "${{ inputs.S3_S9PKS_BASE_URL }}" s9pk publish "$s9pk"
+            ( start-cli --registry "$REGISTRY" --s9pk-s3base "$S3_BASE" s9pk publish "$s9pk" 2>&1 \
+              | sed -u "s|^|[${s9pk}] |" ) &
+            pids+=($!)
           done
+          rc=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || rc=$?
+          done
+          exit $rc
         shell: bash
 
       - name: Add GitHub release mirrors

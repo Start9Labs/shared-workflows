@@ -77,6 +77,8 @@ There is no default for `RELEASE_REGISTRY` — it must be set explicitly (typica
 
 Without S3, every `.s9pk` produced by the build must fit inside GitHub's 2 GiB release-asset limit, since the GitHub release asset is the package URL. **If any file exceeds that limit and S3 is not configured, the workflow fails hard before the GitHub release is created** — no partial release, no registry churn. The developer must either shrink the offending `.s9pk` or configure S3 to host large packages. When S3 is configured, oversize files are still excluded from the GitHub release (per GitHub's limit) but are published via S3 normally, so the registry ends up complete.
 
+When S3 is configured, the GitHub release notes include a `## Downloads` section with direct S3 URLs for every `.s9pk` — so users can still fetch packages that were dropped from the release assets for exceeding GitHub's 2 GiB cap.
+
 ## Actions
 
 ### extract-version

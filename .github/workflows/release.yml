@@ -163,19 +163,9 @@ jobs:
           sha256sum *.s9pk
         shell: bash
 
-      - name: Generate changelog
-        run: |
-          FIRST_S9PK=$(ls *.s9pk | head -1)
-          RELEASE_NOTES=$(start-cli s9pk inspect "$FIRST_S9PK" manifest | jq -r '.releaseNotes | if type == "object" then (.["en-US"] // first(.[]) // "") else . end')
-          echo "## What's Changed" > change-log.txt
-          echo "" >> change-log.txt
-          echo "${RELEASE_NOTES}" >> change-log.txt
-          echo "" >> change-log.txt
-          echo "## SHA256 Hashes" >> change-log.txt
-          echo '```' >> change-log.txt
-          sha256sum *.s9pk >> change-log.txt
-          echo '```' >> change-log.txt
-        shell: bash
+      - name: Extract version
+        id: version
+        uses: start9labs/shared-workflows/.github/actions/extract-version@master
 
       - name: Filter s9pk files for GitHub release
         id: filter_s9pk
@@ -208,9 +198,39 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Extract version
-        id: version
-        uses: start9labs/shared-workflows/.github/actions/extract-version@master
+      # Compose the GitHub-release body. When S3 is configured, include direct
+      # S3 URLs for every s9pk so users can grab packages that exceeded GitHub's
+      # 2 GiB asset cap (and were therefore omitted from the release assets).
+      # The URL layout mirrors start-cli s9pk publish:
+      #   {S3_S9PKS_BASE_URL}/{package_id}/{version-without-#}/{filename}
+      - name: Generate changelog
+        run: |
+          FIRST_S9PK=$(ls *.s9pk | head -1)
+          RELEASE_NOTES=$(start-cli s9pk inspect "$FIRST_S9PK" manifest | jq -r '.releaseNotes | if type == "object" then (.["en-US"] // first(.[]) // "") else . end')
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "${RELEASE_NOTES}"
+            echo ""
+            S3_BASE="${{ inputs.S3_S9PKS_BASE_URL }}"
+            if [ -n "$S3_BASE" ]; then
+              S3_BASE="${S3_BASE%/}"
+              PKG_ID="${{ steps.version.outputs.package_id }}"
+              PKG_VER="${{ steps.version.outputs.version }}"
+              PKG_VER="${PKG_VER#\#}"
+              echo "## Downloads"
+              echo ""
+              for s9pk in *.s9pk; do
+                echo "- [${s9pk}](${S3_BASE}/${PKG_ID}/${PKG_VER}/${s9pk})"
+              done
+              echo ""
+            fi
+            echo "## SHA256 Hashes"
+            echo '```'
+            sha256sum *.s9pk
+            echo '```'
+          } > change-log.txt
+        shell: bash
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

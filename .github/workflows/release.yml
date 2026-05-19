@@ -131,6 +131,16 @@ jobs:
         with:
           ref: ${{ inputs.TAG || github.ref_name }}
 
+      # The developer key is needed by every start-cli write to the registry
+      # (s9pk publish signs the registry entry; package add/remove/add-mirror
+      # likewise). BuildMatrix sets it up on its own runner; Publish runs on
+      # a different runner so it must be set up here too.
+      - name: Set up developer signing key
+        run: |
+          mkdir -p ~/.startos
+          printf '%s' "${{ secrets.DEV_KEY }}" > ~/.startos/developer.key.pem
+        shell: bash
+
       - name: Collect s9pks from BuildMatrix
         uses: actions/download-artifact@v8
         with:

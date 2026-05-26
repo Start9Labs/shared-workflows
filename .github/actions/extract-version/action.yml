@@ -24,24 +24,31 @@ runs:
         fi
         echo "package_id=${PACKAGE_ID}" >> "$GITHUB_OUTPUT"
 
-        # Extract current version variable name from versions/index.ts
-        CURRENT_VAR=$(grep -oP "current:\s*\\K\\w+" startos/versions/index.ts)
-        if [ -z "$CURRENT_VAR" ]; then
-          echo "::error::Could not extract current version variable from startos/versions/index.ts"
-          exit 1
-        fi
+        # Locate the file holding the current version.
+        # New convention: the latest version always lives in startos/versions/current.ts,
+        # so read it directly regardless of how its export is named.
+        # Legacy fallback: chase the `current:` variable in index.ts back to its imported file.
+        if [ -f startos/versions/current.ts ]; then
+          VERSION_FILE="startos/versions/current.ts"
+        else
+          CURRENT_VAR=$(grep -oP "current:\s*\\K\\w+" startos/versions/index.ts)
+          if [ -z "$CURRENT_VAR" ]; then
+            echo "::error::Could not extract current version variable from startos/versions/index.ts"
+            exit 1
+          fi
 
-        # Find the import file for that variable
-        IMPORT_PATH=$(grep -oP "import.*${CURRENT_VAR}.*from\s+['\"]\\./\\K[^'\"]*" startos/versions/index.ts)
-        if [ -z "$IMPORT_PATH" ]; then
-          echo "::error::Could not find import for ${CURRENT_VAR} in startos/versions/index.ts"
-          exit 1
+          IMPORT_PATH=$(grep -oP "import.*${CURRENT_VAR}.*from\s+['\"]\\./\\K[^'\"]*" startos/versions/index.ts)
+          if [ -z "$IMPORT_PATH" ]; then
+            echo "::error::Could not find import for ${CURRENT_VAR} in startos/versions/index.ts"
+            exit 1
+          fi
+          VERSION_FILE="startos/versions/${IMPORT_PATH}.ts"
         fi
 
         # Extract version string from the version file
-        VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" "startos/versions/${IMPORT_PATH}.ts")
+        VERSION=$(grep -oP "version:\s*['\"]\\K[^'\"]*" "$VERSION_FILE")
         if [ -z "$VERSION" ]; then
-          echo "::error::Could not extract version from startos/versions/${IMPORT_PATH}.ts"
+          echo "::error::Could not extract version from ${VERSION_FILE}"
           exit 1
         fi
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"

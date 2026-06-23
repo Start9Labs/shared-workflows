@@ -73,6 +73,15 @@ jobs:
           VERSION="${{ steps.extract.outputs.version }}"
           REFERENCE_REGISTRY="${{ inputs.REFERENCE_REGISTRY }}"
 
+          # hello-world is the canonical package scaffold, not a released package.
+          # Skipping it here lets every caller (including hello-world's own) use the
+          # identical thin workflow with no per-package guard job.
+          if [ "$PACKAGE_ID" = "hello-world" ]; then
+            echo "Package id is 'hello-world' (template scaffold); skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           echo "Checking if ${PACKAGE_ID}@${VERSION} exists on ${REFERENCE_REGISTRY}..."
 
           OUTPUT=$(start-cli --registry="${REFERENCE_REGISTRY}" registry package get "${PACKAGE_ID}" --target-version="${VERSION}" 2>&1)
